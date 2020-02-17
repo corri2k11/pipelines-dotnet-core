@@ -6,34 +6,76 @@
 trigger:
 - master
 
-pool:
-  vmImage: 'ubuntu-16.04'
+jobs:
+  - job: installBuildAndTest  
+    variables:
+      buildConfiguration: 'Stage'
+      connectionString: 'conStrStageConStr'
+    pool:
+      vmImage: 'ubuntu-16.04'
+    steps:
+    #install .net core SDK
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '3.0.x'
+        performMultiLevelLookup: true
 
-variables:
-  buildConfiguration: 'Release'
+    #build
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration Release'
 
-steps:
-- task: UseDotNet@2
-  inputs:
-    packageType: 'sdk'
-    version: '3.0.x'
-    performMultiLevelLookup: true
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'build'
-    projects: '**/*.csproj'
-    arguments: '--configuration Release'
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'test'
-    projects: '**/*Tests/*.csproj'
-    arguments: '--configuration $(buildConfiguration) --collect "Code coverage"'
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'publish'
-    publishWebProjects: true
-    arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactsStagingDirectory))'
-    zipAfterPublish: True
+    #test
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'test'
+        projects: '**/*Tests/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --collect "Code coverage"'
+
+    #publish
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'publish'
+        publishWebProjects: true
+        arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactsStagingDirectory))'
+        zipAfterPublish: True
+
+  - job: deploy
+    variables:
+      buildConfiguration: 'Release'
+      connectionString: 'conStrReleaseConStr'
+    pool: 
+      vmImage: 'ubuntu-16.04'
+    dependsOn: installBuildAndTest
+    condition: succeeded()
+    steps:
+    #deploy to Azure Web App
+    - task: AzureWebApp@1
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'],'refs/heads/master'))
+      inputs:
+        azureSubscription: 'devopsAzureCon1'
+        appType: 'webApp'
+        appName: 'pipelineswebapp1'
+        package: '$(System.    arguments: ''--configuration $(BuildConfiguration) --output $(Build.DefaultWorkingDirectory))'')/**/*.zip'
+        deploymentMethod: 'auto'
+
+    # download artifact dropped from previous job
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'drop'
+        downloadPath: '$(System.ArtifactsStagingDirectory)'
+
+    # deploy Azure Web App production
+    - task: AzureWebApp@1
+      inputs:
+        azureSubscription: 'devopsAzureCon1'
+        appType: 'webApp'
+        appName: 'pipelineswebapp1'
 
 # To create and publish a NuGet Package, add the following snippet
 #- script: dotnet pack /p:PackageVersion=$(version)
@@ -47,3 +89,6 @@ steps:
 #    publishFeedCredentials: 'Name of Nuget service connection'
 #    versioningScheme: byEnvVar
 #    versionEnvVar: version
+
+#System.ArtifactsStagingDirectory
+#System.DefaultWorkingDirectory
