@@ -59,7 +59,6 @@ jobs:
         azureSubscription: 'devopsAzureCon1'
         appType: 'webApp'
         appName: 'pipelineswebapp1'
-        package: '$(System.    arguments: ''--configuration $(BuildConfiguration) --output $(Build.DefaultWorkingDirectory))'')/**/*.zip'
         deploymentMethod: 'auto'
 
     # download artifact dropped from previous job
